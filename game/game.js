@@ -50,11 +50,7 @@ document.getElementById('throwBombBtn').addEventListener('click', (e) => {
 function gameLoop() {
     config.ctx.clearRect(0, 0, config.canvas.width, config.canvas.height);
 
-    // 绘制玩家和光点
-    config.ctx.fillStyle = 'black';
-    config.ctx.font = '24px Arial';
-    config.ctx.fillText(`分数: ${config.score}`, 20, 40);
-
+   
     // 新增：根据移动向量更新位置
     config.player.x += config.moveVector.x * config.player.speed;
     config.player.y += config.moveVector.y * config.player.speed;
@@ -93,7 +89,19 @@ function gameLoop() {
         if (distance < config.player.size + point.size) {
             if (point.type === 'normal') config.score += 1;
             else if (point.type === 'golden') config.score += 5;
-            else if (point.type === 'red') config.bombs += 1; // 红色小球增加炸弹
+            else if (point.type === 'red') {
+                if (config.bombs < config.maxBombs) {
+                    config.bombs += 1;
+                } else {
+                    // // 显示提示并取消消失
+                    // config.showMaxBombWarning = true;
+                    // if (config.warningTimeout) clearTimeout(config.warningTimeout);
+                    // config.warningTimeout = setTimeout(() => {
+                    //     config.showMaxBombWarning = false;
+                    // }, 2000);
+                    return true; // 红球不消失
+                }
+                }
             return false;
         }
         return true;
@@ -119,6 +127,14 @@ function gameLoop() {
         config.ctx.textAlign = 'center';
         config.ctx.fillText('请点击屏幕投掷炸弹', config.canvas.width / 2, 40);
     }
+    // 添加上限提示
+    if (config.bombs == config.maxBombs) {
+        config.ctx.fillStyle = 'red';
+        config.ctx.font = '24px Arial';
+        config.ctx.textAlign = 'center';
+        config.ctx.fillText('炸弹数量到达上限，无法继续拾取炸弹', 
+            config.canvas.width / 2, config.canvas.height - 40);
+    }
 
     // 绘制分数和炸弹数量（添加背景增强可视性）
     config.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; // 半透明白色背景
@@ -130,27 +146,24 @@ function gameLoop() {
     config.ctx.fillText(`分数: ${config.score}`, 20, 40);
     config.ctx.fillText(`炸弹: ${config.bombs}/${config.maxBombs}`, 20, 80);
 
+    
+    
+
+
     requestAnimationFrame(gameLoop);
+
+
+
+
+
+
+
+
 }
 
 
 
-// 修改碰撞检测
-config.points = config.points.filter(point => {
-    const dx = point.x - config.player.x;
-    const dy = point.y - config.player.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance < config.player.size + point.size) {
-        if (point.type === 'normal') config.score += 1;
-        else if (point.type === 'golden') config.score += 5;
-        else if (point.type === 'red' && config.bombs < config.maxBombs) {
-            config.bombs += 1; // 红色小球增加炸弹，不超过上限
-        }
-        return false;
-    }
-    return true;
-});
+
 
 // 初始化虚拟摇杆（需要nipplejs库）
 // 初始化虚拟摇杆
