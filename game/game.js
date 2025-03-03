@@ -7,7 +7,7 @@ const config = {
     player: {
         x: 0, y: 0,
         size: 30,
-        speed: 2 // 将速度从5改为2
+        speed: 2 // 玩家移动速度
     },
     points: [],
     score: 0,
@@ -15,7 +15,12 @@ const config = {
     bombs: 0, // 当前拥有的炸弹数量
     maxBombs: 5, // 炸弹上限
     isThrowing: false, // 是否正在投掷炸弹
-    explosions: [] // 存储爆炸效果
+    explosions: [], // 存储爆炸效果
+
+    mapScale: 1, // 地图缩放系数（2倍窗口尺寸）
+    borderSize: 10, // 边界线粗细
+    worldSize: { width: 2000, height: 2000 }, // 虚拟地图尺寸
+    viewOffset: { x: 0, y: 0 }              // 视口偏移量
 };
 
 
@@ -46,25 +51,63 @@ document.getElementById('throwBombBtn').addEventListener('click', (e) => {
     }
 });
 
+// 新增视口跟随逻辑
+function updateViewport() {
+    // 计算视口偏移（使玩家始终居中）
+    config.viewOffset.x = config.player.x - config.canvas.width/2;
+    config.viewOffset.y = config.player.y - config.canvas.height/2;
+    
+    // 限制视口不越界
+    config.viewOffset.x = Math.max(0, Math.min(
+        config.worldSize.width - config.canvas.width, 
+        config.viewOffset.x
+    ));
+    config.viewOffset.y = Math.max(0, Math.min(
+        config.worldSize.height - config.canvas.height,
+        config.viewOffset.y
+    ));
+}
+
 // 在gameLoop中添加提示信息显示
 function gameLoop() {
+    // 更新视口
+    updateViewport();
+
+    // 清空画布
     config.ctx.clearRect(0, 0, config.canvas.width, config.canvas.height);
+    // 绘制虚拟地图边界（基于世界坐标）
+    config.ctx.save();
+    config.ctx.translate(-config.viewOffset.x, -config.viewOffset.y);
+    config.ctx.strokeStyle = 'black';
+    config.ctx.lineWidth = 10;
+    config.ctx.strokeRect(
+        0, 
+        0, 
+        config.worldSize.width, 
+        config.worldSize.height
+    );
+    config.ctx.restore();
 
    
     // 新增：根据移动向量更新位置
     config.player.x += config.moveVector.x * config.player.speed;
     config.player.y += config.moveVector.y * config.player.speed;
     
-    // 保持原有的边界检测
-    config.player.x = Math.max(config.player.size, 
-        Math.min(config.canvas.width - config.player.size, config.player.x));
-    config.player.y = Math.max(config.player.size,
-        Math.min(config.canvas.height - config.player.size, config.player.y));
+    // 修改玩家移动边界检测
+config.player.x = Math.max(config.player.size, 
+    Math.min(config.worldSize.width - config.player.size, config.player.x));
+config.player.y = Math.max(config.player.size,
+    Math.min(config.worldSize.height - config.player.size, config.player.y));
     
     // 绘制玩家
     config.ctx.fillStyle = '#2ecc71';
     config.ctx.beginPath();
-    config.ctx.arc(config.player.x, config.player.y, config.player.size, 0, Math.PI*2);
+    config.ctx.arc( config.player.x - config.viewOffset.x, 
+                    config.player.y - config.viewOffset.y, 
+                    config.player.size, 
+                    0, 
+                    Math.PI*2
+                );
     config.ctx.fill();
     
     // 绘制光点
@@ -73,11 +116,20 @@ function gameLoop() {
             normal: '#3498db',
             golden: '#f1c40f',
             red: '#e74c3c'
-        }[point.type];
-        
+        }[point.type];        
         config.ctx.beginPath();
-        config.ctx.arc(point.x, point.y, point.size, 0, Math.PI*2);
+        config.ctx.arc( point.x - config.viewOffset.x,
+                        point.y - config.viewOffset.y, 
+                        point.size, 
+                        0, 
+                        Math.PI*2
+                    );
         config.ctx.fill();
+    });
+
+    // 在检查碰撞前添加生命周期过滤
+    config.points = config.points.filter(point => {
+        return Date.now() - point.createdAt < point.lifespan;
     });
     
     // 检查碰撞
@@ -93,12 +145,6 @@ function gameLoop() {
                 if (config.bombs < config.maxBombs) {
                     config.bombs += 1;
                 } else {
-                    // // 显示提示并取消消失
-                    // config.showMaxBombWarning = true;
-                    // if (config.warningTimeout) clearTimeout(config.warningTimeout);
-                    // config.warningTimeout = setTimeout(() => {
-                    //     config.showMaxBombWarning = false;
-                    // }, 2000);
                     return true; // 红球不消失
                 }
                 }
@@ -146,26 +192,9 @@ function gameLoop() {
     config.ctx.fillText(`分数: ${config.score}`, 20, 40);
     config.ctx.fillText(`炸弹: ${config.bombs}/${config.maxBombs}`, 20, 80);
 
-    
-    
-
-
     requestAnimationFrame(gameLoop);
-
-
-
-
-
-
-
-
 }
 
-
-
-
-
-// 初始化虚拟摇杆（需要nipplejs库）
 // 初始化虚拟摇杆
 function initJoystick() {
     // 确保nipplejs已经加载
@@ -198,14 +227,6 @@ function initJoystick() {
         config.moveVector.x = 0;
         config.moveVector.y = 0;
     });
-
-    // 删除initJoystick中的gameLoop定义
-
-
-// 添加结束事件
-manager.on('end', () => {
-    // 摇杆释放后的处理（可选）
-});
 }
 
 // 启动游戏
@@ -223,10 +244,14 @@ document.getElementById('startBtn').addEventListener('click', () => {
         
         // 设置画布尺寸
         const resize = () => {
-            config.canvas.width = window.innerWidth;
-            config.canvas.height = window.innerHeight;
-            config.player.x = config.canvas.width / 2;
-            config.player.y = config.canvas.height / 2;
+        // 逻辑尺寸 = 窗口尺寸 × 缩放系数
+        config.canvas.width = window.innerWidth * config.mapScale;
+        config.canvas.height = window.innerHeight * config.mapScale;
+        // 显示尺寸保持窗口实际大小
+        config.canvas.style.width = '100%';
+        config.canvas.style.height = '100%';
+        config.player.x = config.canvas.width / 2;
+        config.player.y = config.canvas.height / 2;
         };
         window.addEventListener('resize', resize);
         resize();
@@ -248,10 +273,11 @@ function createPoint() {
     const type = types[Math.floor(Math.random() * 3)];
     
     config.points.push({
-        x: Math.random() * config.canvas.width,
-        y: Math.random() * config.canvas.height,
+        x: Math.random() * config.worldSize.width,
+        y: Math.random() * config.worldSize.height,
         size: 15,
         type: type,
-        lifespan: 5000 // 5秒后消失
+        lifespan: 5000, // 5秒后消失
+        createdAt: Date.now() // 新增时间戳记录
     });
 }
