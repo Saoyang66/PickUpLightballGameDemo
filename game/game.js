@@ -1,13 +1,11 @@
 // 游戏基础配置
-// 在config中添加moveVector
-// 修改玩家速度
 const config = {
     canvas: null,
     ctx: null,
     player: {
         x: 0, y: 0,
         size: 30,
-        speed: 2 // 玩家移动速度
+        speed: 1.5 // 玩家移动速度
     },
     points: [],
     score: 0,
@@ -17,11 +15,45 @@ const config = {
     isThrowing: false, // 是否正在投掷炸弹
     explosions: [], // 存储爆炸效果
 
-    mapScale: 1, // 地图缩放系数（2倍窗口尺寸）
+    mapScale: 1, // 窗口尺寸缩放比例
     borderSize: 10, // 边界线粗细
     worldSize: { width: 2000, height: 2000 }, // 虚拟地图尺寸
-    viewOffset: { x: 0, y: 0 }              // 视口偏移量
+    viewOffset: { x: 0, y: 0 }, // 视口偏移量
+
+    //背景图片
+    background: {
+        image: new Image(),
+        width: 2000,  // 必须与worldSize一致
+        height: 2000  // 必须与worldSize一致
+    },
+    // 地形配置
+    terrains: [
+        {
+            type: 'lake',
+            image: new Image(),
+            x: 500,   // 地形左上角X坐标
+            y: 300,   // 地形左上角Y坐标
+            width: 700,  // 地形区域宽度
+            height: 700, // 地形区域高度
+            speedFactor: 0.2 // 速度系数 (数字越小，移动速度越慢)
+        },
+        {
+            type: 'lava',
+            image: new Image(),
+            x: 850,   // 地形左上角X坐标
+            y: 1200,   // 地形左上角Y坐标
+            width: 700,  // 地形区域宽度
+            height: 700, // 地形区域高度
+            speedFactor: 0.05 // 速度系数 (数字越小，移动速度越慢)
+        }
+    ]
 };
+// 设置图片路径
+config.background.image.src = './image/background.png';
+// 设置湖泊图片路径
+config.terrains[0].image.src = './image/lake.png';
+// 设置熔岩图片路径
+config.terrains[1].image.src = './image/lava.png';
 
 
 
@@ -68,7 +100,7 @@ function updateViewport() {
     ));
 }
 
-// 在gameLoop中添加提示信息显示
+// 游戏主循环
 function gameLoop() {
     // 更新视口
     updateViewport();
@@ -78,6 +110,28 @@ function gameLoop() {
     // 绘制虚拟地图边界（基于世界坐标）
     config.ctx.save();
     config.ctx.translate(-config.viewOffset.x, -config.viewOffset.y);
+    // 绘制背景图片
+    if (config.background.image.complete) {
+        config.ctx.drawImage(
+            config.background.image,
+            0, 0, 
+            config.background.width, 
+            config.background.height
+        );
+    }
+    // 绘制所有地形
+    config.terrains.forEach(terrain => {
+        if (terrain.image.complete) {
+            config.ctx.drawImage(
+                terrain.image,
+                terrain.x, 
+                terrain.y,
+                terrain.width,
+                terrain.height
+            );
+        }
+    });
+
     config.ctx.strokeStyle = 'black';
     config.ctx.lineWidth = 10;
     config.ctx.strokeRect(
@@ -94,10 +148,24 @@ function gameLoop() {
     config.player.y += config.moveVector.y * config.player.speed;
     
     // 修改玩家移动边界检测
-config.player.x = Math.max(config.player.size, 
-    Math.min(config.worldSize.width - config.player.size, config.player.x));
-config.player.y = Math.max(config.player.size,
-    Math.min(config.worldSize.height - config.player.size, config.player.y));
+    config.player.x = Math.max(config.player.size, 
+        Math.min(config.worldSize.width - config.player.size, config.player.x));
+    config.player.y = Math.max(config.player.size,
+        Math.min(config.worldSize.height - config.player.size, config.player.y));
+
+    // 地形速度检测
+    let currentSpeed = config.player.speed;
+    config.terrains.forEach(terrain => {
+        if (config.player.x > terrain.x && 
+            config.player.x < terrain.x + terrain.width &&
+            config.player.y > terrain.y && 
+            config.player.y < terrain.y + terrain.height) {
+            currentSpeed *= terrain.speedFactor;
+        }
+    });
+    // 应用速度修改
+    config.player.x += config.moveVector.x * currentSpeed;
+    config.player.y += config.moveVector.y * currentSpeed;
     
     // 绘制玩家
     config.ctx.fillStyle = '#2ecc71';
@@ -230,15 +298,15 @@ function initJoystick() {
 }
 
 // 启动游戏
-// 修改启动游戏事件
-document.getElementById('startBtn').addEventListener('click', () => {
+    // 修改启动游戏事件
+    document.getElementById('startBtn').addEventListener('click', () => {
     // 隐藏开始菜单
     document.getElementById('startMenu').style.display = 'none';
     // 显示投掷炸弹按钮
     document.getElementById('throwBombBtn').style.display = 'block';
     
     // 添加init函数
-    function init() {
+function init() {
         config.canvas = document.getElementById('gameCanvas');
         config.ctx = config.canvas.getContext('2d');
         
@@ -277,7 +345,7 @@ function createPoint() {
         y: Math.random() * config.worldSize.height,
         size: 15,
         type: type,
-        lifespan: 5000, // 5秒后消失
+        lifespan: 10000, // 10秒后消失
         createdAt: Date.now() // 新增时间戳记录
     });
 }
